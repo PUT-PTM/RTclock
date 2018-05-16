@@ -4,17 +4,29 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../src/audio.c \
+../src/itoa.c \
 ../src/main.c \
+../src/stm32f4_HD44780.c \
+../src/stm32f4_delay.c \
 ../src/syscalls.c \
 ../src/system_stm32f4xx.c 
 
 OBJS += \
+./src/audio.o \
+./src/itoa.o \
 ./src/main.o \
+./src/stm32f4_HD44780.o \
+./src/stm32f4_delay.o \
 ./src/syscalls.o \
 ./src/system_stm32f4xx.o 
 
 C_DEPS += \
+./src/audio.d \
+./src/itoa.d \
 ./src/main.d \
+./src/stm32f4_HD44780.d \
+./src/stm32f4_delay.d \
 ./src/syscalls.d \
 ./src/system_stm32f4xx.d 
 

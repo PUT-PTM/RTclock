@@ -1,53 +1,42 @@
-# Prerequisites
-*.d
-
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
+# Compiled Object files
+*.slo
 *.lo
+*.o
 
-# Shared objects (inc. Windows DLLs)
-*.dll
+# Compiled Dynamic libraries
 *.so
-*.so.*
 *.dylib
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+#*.ld
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
+# Compiled binaries
 *.bin
+*.elf
+*.hex
+*.map
 
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+# Eclipse workfiles
+*.xml
+.settings
+Debug
+Release
+
+# CooCox workfiles
+*.cogui
+*.comarker
+#*.coproj
+*.pbxproj
+*.comemgui
+*.cproject
+*.project
+debug.config
+
+# JLink
+*.jflash
+
+# Trash
+*.bak
