@@ -22,7 +22,6 @@
 # Eclipse workfiles
 *.xml
 .settings
-Debug
 Release
 
 # CooCox workfiles
