@@ -697,6 +697,7 @@ typedef struct
 /** @defgroup RTC_Input_parameter_format_definitions 
   * @{
   */ 
+
 #define RTC_Format_BIN                    ((uint32_t)0x000000000)
 #define RTC_Format_BCD                    ((uint32_t)0x000000001)
 #define IS_RTC_FORMAT(FORMAT) (((FORMAT) == RTC_Format_BIN) || ((FORMAT) == RTC_Format_BCD))

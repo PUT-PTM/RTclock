@@ -4,6 +4,12 @@
 #include "itoa.h"
 #include "stm32f4_delay.h"
 #include "stm32f4_HD44780.h"
+#include "init.h"
+
+#define SENSOR_ADDRESS 0xD0 // or set this according to your HW configuration
+
+#define HEX_2_DEC(val) (((val)/16)*10+((val)%16))
+#define DEC_2_HEX(val) (((val)/10)*16+((val)%10))
 
 extern const u8 rawAudio[123200];
 float v;
@@ -13,10 +19,69 @@ int a = 0;
 int b = 0;
 char buf[10];
 int wskaz = 0;
+RTC_TimeTypeDef* RTC_TimeStruct;
+RTC_DateTypeDef* RTC_DateStruct;
 
 typedef enum {
 	false, true
 } bool;
+
+void tellTime() {
+	RTC_GetTime(RTC_Format_BIN, &RTC_TimeStruct);
+	printf("hour = %d", RTC_TimeStruct->RTC_Hours);
+	printf("mins = %d", RTC_TimeStruct->RTC_Minutes);
+	printf("secs = %d", RTC_TimeStruct->RTC_Seconds);
+}
+//
+//void tellDate() {
+//	RTC_GetDate(RTC_Format_BIN, &RTC_DateStruct);
+//	printf("year %d", RTC_DateStruct->RTC_Year + 2000);
+//	printf("month = 0%d", RTC_DateStruct->RTC_Month);
+//	printf("day = %d", RTC_DateStruct->RTC_Date);
+//}
+
+//typedef struct {
+//	unsigned char second;
+//	unsigned char minute;
+//	unsigned char hour;
+//	unsigned char day;
+//	unsigned char month;
+//	unsigned char year;
+//} rtc_data_t;
+//
+//typedef struct {
+//	unsigned char second;
+//	unsigned char minute;
+//	unsigned char hour;
+//	unsigned char weekday;
+//	unsigned char day;
+//	unsigned char month;
+//	unsigned char year;
+//} raw_data_t;
+//
+//void rtc_get(rtc_data_t* rtc_data) {
+//	raw_data_t raw_data;
+////	i2c_polling_read(SENSOR_ADDRESS, 0x00, sizeof(raw_data), (char*) &raw_data);
+//	rtc_data->second = HEX_2_DEC(raw_data.second);
+//	rtc_data->minute = HEX_2_DEC(raw_data.minute);
+//	rtc_data->hour = HEX_2_DEC(raw_data.hour);
+//	rtc_data->day = HEX_2_DEC(raw_data.day);
+//	rtc_data->month = HEX_2_DEC(raw_data.month);
+//	rtc_data->year = HEX_2_DEC(raw_data.year);
+//}
+//
+//void rtc_set(rtc_data_t* rtc_data) {
+//	raw_data_t raw_data;
+//	raw_data.second = DEC_2_HEX(rtc_data->second);
+//	raw_data.minute = DEC_2_HEX(rtc_data->minute);
+//	raw_data.hour = DEC_2_HEX(rtc_data->hour);
+//	raw_data.day = DEC_2_HEX(rtc_data->day);
+//	raw_data.month = DEC_2_HEX(rtc_data->month);
+//	raw_data.year = DEC_2_HEX(rtc_data->year);
+//	raw_data.weekday = RTC_Weekday_Monday; // or calculate the exact day
+//	i2c_polling_write(SENSOR_ADDRESS, 0x00, sizeof(raw_data),
+//			(char*) &raw_data);
+//}
 
 bool w_gore = true;
 unsigned int temp = 0;
@@ -30,30 +95,6 @@ void TIM3_IRQHandler(void) {
 		DAC_SetChannel1Data(DAC_Align_12b_R, rawAudio[temp]);
 		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
 	}
-}
-
-void init(void) {
-	/* GPIOD Periph clock enable */
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-
-	GPIO_InitTypeDef GPIO_InitStructure;
-	/* Configure PD12, PD13, PD14 and PD15 in output pushpull mode */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14
-			| GPIO_Pin_15;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(GPIOD, &GPIO_InitStructure);
-
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3
-			| GPIO_Pin_8;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(GPIOA, &GPIO_InitStructure);
 }
 
 //char* getA(int a) {
@@ -83,7 +124,9 @@ void setupButtons(void) {
 //			HD44780_Puts(0, 0, getA());
 			HD44780_Puts(2, 0, ":");
 //			HD44780_Puts(3, 0, getB());
-
+//			rtc_data_t* data;
+//			rtc_get(data);
+//			HD44780_Puts(0, 0, data->minute);
 			HD44780_Puts(0, 1, "BUDZIK");
 		}
 		if (program == 3) {
@@ -145,12 +188,15 @@ void setupButtons(void) {
 //				HD44780_Clear();
 	}
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8) == RESET) {
-		HD44780_Clear();
+		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, DISABLE);
 	}
 }
 
 int main(void) {
-	init();
+	init_buttons();
+	init_LCD();
+	init_RTC(RTC_TimeStruct);
+	tellTime();
 
 	//Inicjalizacja wyswietlacza, podajemy wartosc wierszy i kolumn
 	HD44780_Init(16, 2);
@@ -162,6 +208,11 @@ int main(void) {
 	program = 0;
 
 	for (;;) {
+		if (a == 3) {
+			init_DAC();
+			init_Timer3(525 - 1, 10 - 1);
+			init_Timer3_Interruption();
+		}
 		setupButtons();
 	}
 }
