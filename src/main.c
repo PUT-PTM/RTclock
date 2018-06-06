@@ -4,12 +4,14 @@
 #include "itoa.h"
 #include "stm32f4_delay.h"
 #include "stm32f4_HD44780.h"
+#include "tm_stm32f4_i2c.h"
 #include "init.h"
 
 #define SENSOR_ADDRESS 0xD0 // or set this according to your HW configuration
 
 #define HEX_2_DEC(val) (((val)/16)*10+((val)%16))
 #define DEC_2_HEX(val) (((val)/10)*16+((val)%10))
+#define ADDRESS        0xD0 // 1101 000 0
 
 extern const u8 rawAudio[123200];
 float v;
@@ -19,24 +21,24 @@ int a = 0;
 int b = 0;
 char buf[10];
 int wskaz = 0;
-RTC_TimeTypeDef* RTC_TimeStruct;
-RTC_DateTypeDef* RTC_DateStruct;
+//RTC_TimeTypeDef* RTC_TimeStruct;
+//RTC_DateTypeDef* RTC_DateStruct;
 
 typedef enum {
 	false, true
 } bool;
 
-void tellTime() {
-	RTC_GetTime(RTC_Format_BIN, &RTC_TimeStruct);
-	printf("hour = %d", RTC_TimeStruct->RTC_Hours);
-	printf("mins = %d", RTC_TimeStruct->RTC_Minutes);
-	printf("secs = %d", RTC_TimeStruct->RTC_Seconds);
-}
+//void tellTime() {
+//	RTC_GetTime(RTC_Format_BIN, &RTC_TimeStruct);
+//	printf("hour = %d", RTC_TimeStruct->RTC_Hours);
+//	printf("mins = %d", RTC_TimeStruct->RTC_Minutes);
+//	printf("secs = %d", RTC_TimeStruct->RTC_Seconds);
+//}
 //
 //void tellDate() {
 //	RTC_GetDate(RTC_Format_BIN, &RTC_DateStruct);
 //	printf("year %d", RTC_DateStruct->RTC_Year + 2000);
-//	printf("month = 0%d", RTC_DateStruct->RTC_Month);
+//	printf("month = 0%d", kRTC_DateStruct->RTC_Month);
 //	printf("day = %d", RTC_DateStruct->RTC_Date);
 //}
 
@@ -162,6 +164,7 @@ void setupButtons(void) {
 			if (a == 24) {
 				a = 0;
 			}
+
 			itoa(a, buf, 10);
 			if (a < 10) {
 				HD44780_Puts(0, 0, "0");
@@ -193,10 +196,30 @@ void setupButtons(void) {
 }
 
 int main(void) {
+	uint8_t data[] = {0, 1, 2};
 	init_buttons();
 	init_LCD();
-	init_RTC(RTC_TimeStruct);
-	tellTime();
+	TM_I2C_Init(I2C1, TM_I2C_PinsPack_2, 50000);
+	TM_I2C_Write(I2C1, ADDRESS, 0x00, 5);
+	 /**
+	     * Write multi bytes to slave with address ADDRESS
+	     * Write to registers starting from 0x00, get data in variable "data" and write 3 bytes
+	     */
+	    TM_I2C_WriteMulti(I2C1, ADDRESS, 0x00, data, 3);
+	    itoa(data[1], buf, 10);
+
+	    //Read single byte from slave with 0xD0 (1101 000 0) address and register location 0x00
+	    data[0] = TM_I2C_Read(I2C1, ADDRESS, 0x00);
+
+	    /**
+	     * Read 3 bytes of data from slave with 0xD0 address
+	     * First register to read from is at 0x00 location
+	     * Store received data to "data" variable
+	     */
+	    TM_I2C_ReadMulti(I2C1, 0xD0, 0x00, data, 3);
+
+//	init_RTC(RTC_TimeStruct);
+//	tellTime();
 
 	//Inicjalizacja wyswietlacza, podajemy wartosc wierszy i kolumn
 	HD44780_Init(16, 2);
@@ -204,10 +227,21 @@ int main(void) {
 	//Wypisanie stringu na wyswietlaczu
 	HD44780_Puts(0, 0, "STM32F4 Discover");
 	HD44780_Puts(0, 1, "ZEGAREK");
+	HD44780_Puts(0, 1, buf);
 
 	program = 0;
 
 	for (;;) {
+		//testujemy
+					uint8_t data[] = {0, 0, 0};
+					TM_I2C_ReadMulti(I2C1, 0xD0, 0x00, data, 3);
+					itoa(data[0], buf, 10);
+					HD44780_Puts(6, 0, buf);
+		//			itoa(data[1], buf, 10);
+		//			HD44780_Puts(7, 0, buf);
+		//			itoa(data[2], buf, 10);
+		//			HD44780_Puts(8, 0, buf);
+					//tutaj
 		if (a == 3) {
 			init_DAC();
 			init_Timer3(525 - 1, 10 - 1);
