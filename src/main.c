@@ -18,8 +18,11 @@ float v;
 unsigned int ADC_Result1 = 0;
 int program;
 int editingStep = 0;
-int a = 0;
-int b = 0;
+int hour = 0;
+int minute = 0;
+int minuteStopWatch = 0;
+int secondStopWatch = 0;
+int previousSecondStopWatch = -1;
 char buf[10];
 int wskaz = 0;
 
@@ -27,6 +30,7 @@ typedef enum {
 	false, true
 } bool;
 
+bool stopWatchRunning = false;
 bool w_gore = true;
 unsigned int temp = 0;
 void TIM3_IRQHandler(void) {
@@ -57,7 +61,21 @@ void setupButtons(void) {
 			HD44780_Puts(0, 1, "BUDZIK");
 		}
 		if (program == 3) {
-			HD44780_Puts(0, 0, "00:00");
+			itoa(minuteStopWatch, buf, 10);
+			if (minuteStopWatch > 9) {
+				HD44780_Puts(0, 0, buf);
+			} else {
+				HD44780_Puts(0, 0, "0");
+				HD44780_Puts(1, 0, buf);
+			}
+			HD44780_Puts(2, 0, ":");
+			itoa(secondStopWatch, buf, 10);
+			if (secondStopWatch < 10) {
+				HD44780_Puts(3, 0, buf);
+			} else {
+				HD44780_Puts(3, 0, "0");
+				HD44780_Puts(4, 0, buf);
+			}
 			HD44780_Puts(0, 1, "STOPER");
 		}
 		if (program == 4) {
@@ -68,34 +86,39 @@ void setupButtons(void) {
 	}
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_2) == RESET) {
 		Delayms(200);
-		HD44780_CursorOn();
-		HD44780_BlinkOn();
-		if (editingStep == 0) {
-			editingStep = 1;
-		}
-		if (wskaz == 0) {
-			wskaz++;
-			HD44780_CursorSet(1, 0);
-		} else if (wskaz == 1) {
-			wskaz++;
-			HD44780_CursorSet(4, 0);
+		if (program != 3) {
+
+			HD44780_CursorOn();
+			HD44780_BlinkOn();
+			if (editingStep == 0) {
+				editingStep = 1;
+			}
+			if (wskaz == 0) {
+				wskaz++;
+				HD44780_CursorSet(1, 0);
+			} else if (wskaz == 1) {
+				wskaz++;
+				HD44780_CursorSet(4, 0);
+			} else {
+				HD44780_CursorOff();
+				HD44780_BlinkOff();
+				wskaz = 0;
+			}
 		} else {
-			HD44780_CursorOff();
-			HD44780_BlinkOff();
-			wskaz = 0;
+			stopWatchRunning = !stopWatchRunning;
 		}
 	}
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_3) == RESET) {
 		Delayms(200);
 		editingStep = 2;
 		if (wskaz == 1) {
-			a++;
-			if (a == 24) {
-				a = 0;
+			hour++;
+			if (hour == 24) {
+				hour = 0;
 			}
 
-			itoa(a, buf, 10);
-			if (a < 10) {
+			itoa(hour, buf, 10);
+			if (hour < 10) {
 				HD44780_Puts(0, 0, "0");
 				HD44780_Puts(1, 0, buf);
 			} else {
@@ -103,12 +126,12 @@ void setupButtons(void) {
 			}
 			HD44780_CursorSet(1, 0);
 		} else if (wskaz == 2) {
-			b++;
-			if (b == 60) {
-				b = 0;
+			minute++;
+			if (minute == 60) {
+				minute = 0;
 			}
-			itoa(b, buf, 10);
-			if (b < 10) {
+			itoa(minute, buf, 10);
+			if (minute < 10) {
 				HD44780_Puts(3, 0, "0");
 				HD44780_Puts(4, 0, buf);
 			} else {
@@ -120,6 +143,13 @@ void setupButtons(void) {
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8) == RESET) {
 		editingStep = 3;
 		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, DISABLE);
+		if (program == 3) {
+			minuteStopWatch = 0;
+			secondStopWatch = 0;
+			previousSecondStopWatch = -1;
+			stopWatchRunning = false;
+			HD44780_Puts(0, 0, "00:00 ");
+		}
 	}
 }
 
@@ -167,13 +197,12 @@ void writeData(int hour, int min, int sec) {
 }
 
 int main(void) {
-	writeData(23, 55, 00);
 	init_buttons();
 	init_LCD();
 	TM_I2C_Init(I2C1, TM_I2C_PinsPack_2, 50000);
 	HD44780_Init(16, 2);
+	//	writeData(23, 55, 00);
 
-//Wypisanie stringu na wyswietlaczu
 	HD44780_Puts(0, 0, "STM32F4 Discover");
 	HD44780_Puts(0, 1, "ZEGAREK");
 
@@ -192,19 +221,54 @@ int main(void) {
 			printValue(3, dataRead[1]);
 			HD44780_Puts(5, 0, "   ");
 			editingStep = 2;
-			a = dataRead[2];
-			b = dataRead[1];
+			hour = dataRead[2];
+			minute = dataRead[1];
 		} else if (editingStep == 3) {
-			writeData(a, b, 0);
+			writeData(hour, minute, 0);
 			editingStep = 0;
+			HD44780_Puts(5, 0, ":");
 			HD44780_CursorOff();
 			HD44780_BlinkOff();
 			wskaz = 0;
 		}
-		if (a == 3) {
-			init_DAC();
-			init_Timer3(525 - 1, 10 - 1);
-			init_Timer3_Interruption();
+//		if (hour == 3) {
+//			init_DAC();
+//			init_Timer3(525 - 1, 10 - 1);
+//			init_Timer3_Interruption();
+//		}
+		if (stopWatchRunning) {
+			if (previousSecondStopWatch == -1
+					|| (previousSecondStopWatch > 0 && dataRead[0] == 0)) {
+				previousSecondStopWatch = dataRead[0];
+			} else if (previousSecondStopWatch < dataRead[0]) {
+				previousSecondStopWatch = dataRead[0];
+				secondStopWatch++;
+				if (secondStopWatch == 60) {
+					if (minuteStopWatch != 99) {
+						minuteStopWatch++;
+					}
+					secondStopWatch = 0;
+				}
+				itoa(minuteStopWatch, buf, 10);
+				if (minuteStopWatch > 9) {
+					HD44780_Puts(0, 0, buf);
+				} else {
+					HD44780_Puts(0, 0, "0");
+					HD44780_Puts(1, 0, buf);
+				}
+				HD44780_Puts(2, 0, ":");
+				itoa(secondStopWatch, buf, 10);
+				if (secondStopWatch > 9) {
+					HD44780_Puts(3, 0, buf);
+				} else {
+					HD44780_Puts(3, 0, "0");
+					HD44780_Puts(4, 0, buf);
+				}
+//				itoa(minuteStopWatch, buf, 10);
+//				HD44780_Puts(0, 0, buf);
+//				itoa(secondStopWatch, buf, 10);
+//				HD44780_Puts(3, 0, buf);
+			}
 		}
 		setupButtons();
 	}
