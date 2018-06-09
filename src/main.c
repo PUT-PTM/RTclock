@@ -17,73 +17,15 @@ extern const u8 rawAudio[123200];
 float v;
 unsigned int ADC_Result1 = 0;
 int program;
+int editingStep = 0;
 int a = 0;
 int b = 0;
 char buf[10];
 int wskaz = 0;
-//RTC_TimeTypeDef* RTC_TimeStruct;
-//RTC_DateTypeDef* RTC_DateStruct;
 
 typedef enum {
 	false, true
 } bool;
-
-//void tellTime() {
-//	RTC_GetTime(RTC_Format_BIN, &RTC_TimeStruct);
-//	printf("hour = %d", RTC_TimeStruct->RTC_Hours);
-//	printf("mins = %d", RTC_TimeStruct->RTC_Minutes);
-//	printf("secs = %d", RTC_TimeStruct->RTC_Seconds);
-//}
-//
-//void tellDate() {
-//	RTC_GetDate(RTC_Format_BIN, &RTC_DateStruct);
-//	printf("year %d", RTC_DateStruct->RTC_Year + 2000);
-//	printf("month = 0%d", kRTC_DateStruct->RTC_Month);
-//	printf("day = %d", RTC_DateStruct->RTC_Date);
-//}
-
-//typedef struct {
-//	unsigned char second;
-//	unsigned char minute;
-//	unsigned char hour;
-//	unsigned char day;
-//	unsigned char month;
-//	unsigned char year;
-//} rtc_data_t;
-//
-//typedef struct {
-//	unsigned char second;
-//	unsigned char minute;
-//	unsigned char hour;
-//	unsigned char weekday;
-//	unsigned char day;
-//	unsigned char month;
-//	unsigned char year;
-//} raw_data_t;
-//
-//void rtc_get(rtc_data_t* rtc_data) {
-//	raw_data_t raw_data;
-////	i2c_polling_read(SENSOR_ADDRESS, 0x00, sizeof(raw_data), (char*) &raw_data);
-//	rtc_data->second = HEX_2_DEC(raw_data.second);
-//	rtc_data->minute = HEX_2_DEC(raw_data.minute);
-//	rtc_data->hour = HEX_2_DEC(raw_data.hour);
-//	rtc_data->day = HEX_2_DEC(raw_data.day);
-//	rtc_data->month = HEX_2_DEC(raw_data.month);
-//	rtc_data->year = HEX_2_DEC(raw_data.year);
-//}
-//
-//void rtc_set(rtc_data_t* rtc_data) {
-//	raw_data_t raw_data;
-//	raw_data.second = DEC_2_HEX(rtc_data->second);
-//	raw_data.minute = DEC_2_HEX(rtc_data->minute);
-//	raw_data.hour = DEC_2_HEX(rtc_data->hour);
-//	raw_data.day = DEC_2_HEX(rtc_data->day);
-//	raw_data.month = DEC_2_HEX(rtc_data->month);
-//	raw_data.year = DEC_2_HEX(rtc_data->year);
-//	raw_data.weekday = RTC_Weekday_Monday; // or calculate the exact day
-//	i2c_polling_write(SENSOR_ADDRESS, 0x00, sizeof(raw_data),
-//			(char*) &raw_data);
-//}
 
 bool w_gore = true;
 unsigned int temp = 0;
@@ -99,16 +41,6 @@ void TIM3_IRQHandler(void) {
 	}
 }
 
-//char* getA(int a) {
-//	char buffer[2];
-//	if(a <= 9) {
-//		sprintf(buffer, "0%d", 1);
-//	} else {
-//		sprintf(buffer, "%d", 1);
-//	}
-//	return *buffer;
-//}
-
 void setupButtons(void) {
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_1) == RESET) {
 		HD44780_CursorOff();
@@ -117,18 +49,11 @@ void setupButtons(void) {
 		HD44780_Clear();
 		program++;
 		if (program == 1) {
-			HD44780_Puts(0, 0, "00:00");
+			HD44780_Puts(0, 0, "00:00:");
 			HD44780_Puts(0, 1, "GODZINA");
 		}
 		if (program == 2) {
-//					char* buf;
-//										sprintf(buf,"%d", 12);
-//			HD44780_Puts(0, 0, getA());
 			HD44780_Puts(2, 0, ":");
-//			HD44780_Puts(3, 0, getB());
-//			rtc_data_t* data;
-//			rtc_get(data);
-//			HD44780_Puts(0, 0, data->minute);
 			HD44780_Puts(0, 1, "BUDZIK");
 		}
 		if (program == 3) {
@@ -145,6 +70,9 @@ void setupButtons(void) {
 		Delayms(200);
 		HD44780_CursorOn();
 		HD44780_BlinkOn();
+		if (editingStep == 0) {
+			editingStep = 1;
+		}
 		if (wskaz == 0) {
 			wskaz++;
 			HD44780_CursorSet(1, 0);
@@ -159,6 +87,7 @@ void setupButtons(void) {
 	}
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_3) == RESET) {
 		Delayms(200);
+		editingStep = 2;
 		if (wskaz == 1) {
 			a++;
 			if (a == 24) {
@@ -187,61 +116,91 @@ void setupButtons(void) {
 			}
 			HD44780_CursorSet(4, 0);
 		}
-
-//				HD44780_Clear();
 	}
 	if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8) == RESET) {
+		editingStep = 3;
 		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, DISABLE);
 	}
 }
 
+void printValue(int position, int value) {
+	if (value < 10) {
+		itoa(value, buf, 10);
+		HD44780_Puts(position, 0, "0");
+		HD44780_Puts(position + 1, 0, buf);
+	} else {
+		int val = 0;
+		if (value > 9 && value < 32) {
+			val = value - 6;
+		} else if (value > 25 && value < 48) {
+			val = value - 12;
+		} else if (value > 41 && value < 64) {
+			val = value - 18;
+		} else if (value > 57 && value < 80) {
+			val = value - 24;
+		} else if (value > 73) {
+			val = value - 30;
+		}
+		itoa(val, buf, 10);
+		HD44780_Puts(position, 0, buf);
+	}
+}
+
+int writeValue(int value) {
+	if (value > 9 && value < 20) {
+		value = value + 6;
+	} else if (value > 19 && value < 30) {
+		value = value + 12;
+	} else if (value > 29 && value < 40) {
+		value = value + 18;
+	} else if (value > 39 && value < 50) {
+		value = value + 24;
+	} else if (value > 49) {
+		value = value + 30;
+	}
+	return value;
+}
+
+void writeData(int hour, int min, int sec) {
+	uint8_t dataWrite[] = { writeValue(sec), writeValue(min), writeValue(hour) };
+	TM_I2C_WriteMulti(I2C1, ADDRESS, 0x00, dataWrite, 3);
+}
+
 int main(void) {
-	uint8_t data[] = {0, 1, 2};
+	writeData(23, 55, 00);
 	init_buttons();
 	init_LCD();
 	TM_I2C_Init(I2C1, TM_I2C_PinsPack_2, 50000);
-	TM_I2C_Write(I2C1, ADDRESS, 0x00, 5);
-	 /**
-	     * Write multi bytes to slave with address ADDRESS
-	     * Write to registers starting from 0x00, get data in variable "data" and write 3 bytes
-	     */
-	    TM_I2C_WriteMulti(I2C1, ADDRESS, 0x00, data, 3);
-	    itoa(data[1], buf, 10);
-
-	    //Read single byte from slave with 0xD0 (1101 000 0) address and register location 0x00
-	    data[0] = TM_I2C_Read(I2C1, ADDRESS, 0x00);
-
-	    /**
-	     * Read 3 bytes of data from slave with 0xD0 address
-	     * First register to read from is at 0x00 location
-	     * Store received data to "data" variable
-	     */
-	    TM_I2C_ReadMulti(I2C1, 0xD0, 0x00, data, 3);
-
-//	init_RTC(RTC_TimeStruct);
-//	tellTime();
-
-	//Inicjalizacja wyswietlacza, podajemy wartosc wierszy i kolumn
 	HD44780_Init(16, 2);
 
-	//Wypisanie stringu na wyswietlaczu
+//Wypisanie stringu na wyswietlaczu
 	HD44780_Puts(0, 0, "STM32F4 Discover");
 	HD44780_Puts(0, 1, "ZEGAREK");
-	HD44780_Puts(0, 1, buf);
 
 	program = 0;
 
 	for (;;) {
 		//testujemy
-					uint8_t data[] = {0, 0, 0};
-					TM_I2C_ReadMulti(I2C1, 0xD0, 0x00, data, 3);
-					itoa(data[0], buf, 10);
-					HD44780_Puts(6, 0, buf);
-		//			itoa(data[1], buf, 10);
-		//			HD44780_Puts(7, 0, buf);
-		//			itoa(data[2], buf, 10);
-		//			HD44780_Puts(8, 0, buf);
-					//tutaj
+		uint8_t dataRead[] = { 0, 0, 0 };
+		TM_I2C_ReadMulti(I2C1, 0xD0, 0x00, dataRead, 3);
+		if (program == 1 && editingStep == 0) {
+			printValue(0, dataRead[2]);
+			printValue(3, dataRead[1]);
+			printValue(6, dataRead[0]);
+		} else if (editingStep == 1) {
+			printValue(0, dataRead[2]);
+			printValue(3, dataRead[1]);
+			HD44780_Puts(5, 0, "   ");
+			editingStep = 2;
+			a = dataRead[2];
+			b = dataRead[1];
+		} else if (editingStep == 3) {
+			writeData(a, b, 0);
+			editingStep = 0;
+			HD44780_CursorOff();
+			HD44780_BlinkOff();
+			wskaz = 0;
+		}
 		if (a == 3) {
 			init_DAC();
 			init_Timer3(525 - 1, 10 - 1);
